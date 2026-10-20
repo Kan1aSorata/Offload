@@ -1,4 +1,4 @@
-//! Tauri 层：托盘、窗口、通知、命令和事件桥接。核心逻辑都在 photosync-core。
+//! Tauri 层：托盘、窗口、通知、命令和事件桥接。核心逻辑都在 offload-core。
 
 mod commands;
 mod settings;
@@ -7,7 +7,7 @@ mod tray;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use photosync_core::{manifest, JobState, Notice, Service};
+use offload_core::{manifest, JobState, Notice, Service};
 use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 use tauri_plugin_notification::NotificationExt;
 
@@ -44,9 +44,12 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+            settings::migrate_legacy(app.handle());
             let cfg = settings::load(app.handle());
             let (notice_tx, notice_rx) = crossbeam_channel::unbounded::<Notice>();
-            let service = Service::start(cfg.clone(), manifest::default_path(), notice_tx)?;
+            let manifest_path = manifest::default_path();
+            manifest::migrate_legacy(&manifest_path);
+            let service = Service::start(cfg.clone(), manifest_path, notice_tx)?;
             app.manage(AppState { service, popover_hidden_at: Mutex::new(None) });
 
             tray::create(app.handle())?;
@@ -83,7 +86,7 @@ pub fn run() {
             commands::quit,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building PhotoSync");
+        .expect("error while building Offload");
 
     app.run(|app, event| match event {
         // 窗口全部关闭时不退出：这是常驻菜单栏的应用

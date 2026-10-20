@@ -354,7 +354,7 @@ impl Runner {
 
         let _ = self.notify.send(Notice::Started { card: job.name.clone(), files: files_total, bytes: plan.bytes_total });
         self.progress.set_state(JobState::Copying);
-        let sleep_guard = SleepGuard::acquire("PhotoSync 正在备份存储卡");
+        let sleep_guard = SleepGuard::acquire("Offload 正在备份存储卡");
         let opts = CopyOptions { verify: cfg.verify, paranoid: cfg.paranoid_verify };
 
         let mut copied: Vec<&planner::CopyTask> = Vec::with_capacity(plan.tasks.len());
@@ -537,7 +537,7 @@ mod tests {
     #[test]
     fn waits_for_missing_target() {
         let card = tempfile::tempdir().unwrap();
-        let (mut r, nrx, progress) = setup(card.path(), Path::new("/nonexistent/photosync-target"));
+        let (mut r, nrx, progress) = setup(card.path(), Path::new("/nonexistent/offload-target"));
         fs::write(card.path().join("DCIM/100CANON/A.JPG"), b"x").unwrap();
         assert!(matches!(r.run_job(&job(card.path())), Outcome::Waiting));
         assert_eq!(progress.state(), JobState::WaitingForTarget);
@@ -564,7 +564,7 @@ mod tests {
     fn every_waiting_card_resumes() {
         let target = tempfile::tempdir().unwrap();
         let scratch = tempfile::tempdir().unwrap();
-        let (mut r, _nrx, progress) = setup(scratch.path(), Path::new("/nonexistent/photosync-target"));
+        let (mut r, _nrx, progress) = setup(scratch.path(), Path::new("/nonexistent/offload-target"));
         let _cards = two_cards(&mut r);
         while r.run_next() {}
         assert_eq!(r.waiting.len(), 2);
@@ -580,7 +580,7 @@ mod tests {
     #[test]
     fn removing_waiting_card_shows_the_other() {
         let scratch = tempfile::tempdir().unwrap();
-        let (mut r, _nrx, progress) = setup(scratch.path(), Path::new("/nonexistent/photosync-target"));
+        let (mut r, _nrx, progress) = setup(scratch.path(), Path::new("/nonexistent/offload-target"));
         let _cards = two_cards(&mut r);
         while r.run_next() {}
         assert_eq!(progress.snapshot().card_name.as_deref(), Some("卡1"));

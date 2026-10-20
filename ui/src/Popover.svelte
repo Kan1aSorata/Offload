@@ -161,14 +161,14 @@
   {#if !snap}
     <div class="header">
       <div class="plate tone-ac"><Icon name="card-up" /></div>
-      <div class="grow"><div class="h">PhotoSync</div></div>
+      <div class="grow"><div class="h">Offload</div></div>
     </div>
   {:else if phase === "idle"}
     <!-- 空闲：等待插卡 -->
     <div class="header">
       <div class="plate tone-ac"><Icon name="card-up" /></div>
       <div class="grow">
-        <div class="h">PhotoSync</div>
+        <div class="h">Offload</div>
         <div class="caption muted">等待插卡 · Idle</div>
       </div>
       <button class="icon-btn" aria-label="设置" onclick={() => api.openSettings()}><Icon name="gear" /></button>

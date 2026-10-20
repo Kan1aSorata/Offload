@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>NSRemovableVolumesUsageDescription</key>
-  <string>PhotoSync 需要读取相机存储卡并把照片写入你选择的 SSD。文件只在本机复制，不会上传。</string>
+  <string>Offload 需要读取相机存储卡并把照片写入你选择的 SSD。文件只在本机复制，不会上传。</string>
   <key>LSUIElement</key>
   <true/>
 </dict>

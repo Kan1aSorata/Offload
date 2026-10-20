@@ -76,7 +76,7 @@ impl Service {
         self.progress.resume();
     }
 
-    /// 退出前调用：中止当前拷贝，只留下会被下次清理的 .photosync-part
+    /// 退出前调用：中止当前拷贝，只留下会被下次清理的 .offload-part
     pub fn shutdown(&self) {
         self.progress.cancel();
         let _ = self.cmd.send(Command::Shutdown);

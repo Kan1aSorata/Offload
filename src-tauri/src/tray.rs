@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use photosync_core::{JobState, Snapshot};
+use offload_core::{JobState, Snapshot};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -20,7 +20,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let status = MenuItem::with_id(app, "status", "空闲 · 等待插卡", false, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "设置…", true, Some("CmdOrCtrl+,"))?;
     let open_dir = MenuItem::with_id(app, "open_dir", "打开备份目录", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "退出 PhotoSync", true, Some("CmdOrCtrl+Q"))?;
+    let quit = MenuItem::with_id(app, "quit", "退出 Offload", true, Some("CmdOrCtrl+Q"))?;
     let menu = Menu::with_items(
         app,
         &[
@@ -37,7 +37,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(Image::from_bytes(include_bytes!("../icons/tray@2x.png"))?)
         .icon_as_template(true)
-        .tooltip("PhotoSync")
+        .tooltip("Offload")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {

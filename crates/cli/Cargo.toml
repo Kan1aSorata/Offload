@@ -1,11 +1,11 @@
 [package]
-name = "photosync-cli"
+name = "offload-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-photosync-core.workspace = true
+offload-core.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

@@ -2716,6 +2716,62 @@ dependencies = [
 ]
 
 [[package]]
+name = "offload"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crossbeam-channel",
+ "offload-core",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-autostart",
+ "tauri-plugin-dialog",
+ "tauri-plugin-notification",
+ "tauri-plugin-opener",
+ "tauri-plugin-positioner",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-store",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "offload-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "crossbeam-channel",
+ "offload-core",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "offload-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "core-foundation",
+ "core-foundation-sys",
+ "crossbeam-channel",
+ "filetime",
+ "libc",
+ "nom-exif",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tracing",
+ "walkdir",
+ "xxhash-rust",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2880,62 +2936,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e57fef6bc5981e38c2ce2d63bfa546861309f875b8a75f092d1d54ae2d64f266"
 dependencies = [
  "siphasher",
-]
-
-[[package]]
-name = "photosync"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "crossbeam-channel",
- "photosync-core",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-autostart",
- "tauri-plugin-dialog",
- "tauri-plugin-notification",
- "tauri-plugin-opener",
- "tauri-plugin-positioner",
- "tauri-plugin-single-instance",
- "tauri-plugin-store",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "photosync-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "crossbeam-channel",
- "photosync-core",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "photosync-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "core-foundation",
- "core-foundation-sys",
- "crossbeam-channel",
- "filetime",
- "libc",
- "nom-exif",
- "rusqlite",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
- "tracing",
- "walkdir",
- "xxhash-rust",
 ]
 
 [[package]]

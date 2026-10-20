@@ -212,10 +212,10 @@
         <div class="group">
           <div class="row">
             <div class="col">
-              <span>登录时打开 PhotoSync</span>
+              <span>登录时打开 Offload</span>
               <span class="small muted">常驻菜单栏，插卡即备份</span>
             </div>
-            <Switch label="登录时打开 PhotoSync" checked={cfg.launch_at_login} onchange={(v) => update("launch_at_login", v)} />
+            <Switch label="登录时打开 Offload" checked={cfg.launch_at_login} onchange={(v) => update("launch_at_login", v)} />
           </div>
           <div class="row">
             <span>首次引导</span>
@@ -252,14 +252,14 @@
             <Switch label="完成或出错时通知" checked={cfg.notify_finish} onchange={(v) => update("notify_finish", v)} />
           </div>
         </div>
-        <p class="small muted">通知的样式和声音可在“系统设置 › 通知 › PhotoSync”中调整。</p>
+        <p class="small muted">通知的样式和声音可在“系统设置 › 通知 › Offload”中调整。</p>
       </section>
     {:else if page === "about"}
       <h1 class="title">关于</h1>
       <div class="about">
         <div class="plate tone-ac big"><Icon name="card-up" size={28} /></div>
         <div class="col">
-          <span class="h">PhotoSync {info?.version ?? ""}</span>
+          <span class="h">Offload {info?.version ?? ""}</span>
           <span class="small muted">插入相机卡，自动备份到 SSD。只读源卡，校验通过前绝不弹出。</span>
         </div>
       </div>
@@ -301,7 +301,7 @@
         </section>
       {/if}
       <div>
-        <button class="btn sm" onclick={() => api.quit()}>退出 PhotoSync</button>
+        <button class="btn sm" onclick={() => api.quit()}>退出 Offload</button>
       </div>
     {/if}
 

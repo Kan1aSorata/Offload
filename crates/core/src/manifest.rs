@@ -1,6 +1,6 @@
 //! 增量记录（SQLite）：增量判断、审计、断点续传。
 //!
-//! 默认位于 `~/Library/Application Support/PhotoSync/manifest.db`。
+//! 默认位于 `~/Library/Application Support/Offload/manifest.db`。
 
 use std::path::{Path, PathBuf};
 
@@ -57,9 +57,57 @@ pub struct JobRow {
     pub dest_dir: Option<String>,
 }
 
+fn home() -> PathBuf {
+    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+}
+
 pub fn default_path() -> PathBuf {
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
-    home.join("Library/Application Support/PhotoSync/manifest.db")
+    home().join("Library/Application Support/Offload/manifest.db")
+}
+
+/// 改名前（PhotoSync）的数据目录
+const LEGACY_DIR: &str = "Library/Application Support/PhotoSync";
+
+/// 改名后首次启动：把旧目录里的增量记录搬到 `path`，否则下次插卡会把已备份的文件重拷一遍。
+/// 打开数据库之前调用。
+pub fn migrate_legacy(path: &Path) {
+    match migrate_from(&home().join(LEGACY_DIR), path) {
+        Ok(true) => tracing::info!(to = %path.display(), "已迁移 PhotoSync 的增量记录"),
+        Ok(false) => {}
+        Err(e) => tracing::warn!(error = %e, "迁移 PhotoSync 增量记录失败"),
+    }
+}
+
+/// 一条文件记录和任务记录都没有：可以放心被旧库覆盖
+fn is_empty(path: &Path) -> bool {
+    Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .and_then(|c| c.query_row("SELECT (SELECT count(*) FROM files) + (SELECT count(*) FROM jobs)", [], |r| r.get::<_, i64>(0)))
+        .map(|n| n == 0)
+        .unwrap_or(false)
+}
+
+fn migrate_from(legacy_dir: &Path, path: &Path) -> std::io::Result<bool> {
+    let old = legacy_dir.join("manifest.db");
+    if !old.exists() || (path.exists() && !is_empty(path)) {
+        return Ok(false);
+    }
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    // WAL 里可能还有未合并的记录，三个文件一起搬；主库最后搬，中途失败下次还会重试。
+    // 新位置上已有的空库（迁移前先启动过一次）连同它的 -wal/-shm 一起被覆盖或删掉。
+    for suffix in ["-wal", "-shm"] {
+        let from = legacy_dir.join(format!("manifest.db{suffix}"));
+        let to = path.with_file_name(format!("manifest.db{suffix}"));
+        if from.exists() {
+            std::fs::rename(&from, &to)?;
+        } else if to.exists() {
+            std::fs::remove_file(&to)?;
+        }
+    }
+    std::fs::rename(&old, path)?;
+    let _ = std::fs::remove_dir(legacy_dir); // 只在目录已空时成功
+    Ok(true)
 }
 
 impl Manifest {
@@ -198,6 +246,28 @@ impl Manifest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn migrates_legacy_manifest() {
+        let d = tempfile::tempdir().unwrap();
+        let legacy = d.path().join("PhotoSync");
+        let path = d.path().join("Offload/manifest.db");
+        {
+            let m = Manifest::open(&legacy.join("manifest.db")).unwrap();
+            m.job_start("CARD", "EOS").unwrap();
+        }
+        // 迁移前新位置已被建了一个空库
+        drop(Manifest::open(&path).unwrap());
+        assert!(migrate_from(&legacy, &path).unwrap());
+        assert!(!legacy.exists());
+        let m = Manifest::open(&path).unwrap();
+        assert_eq!(m.recent_jobs(10).unwrap().len(), 1);
+        // 已迁移过：不再动；新库有数据时也不会被旧库覆盖
+        assert!(!migrate_from(&legacy, &path).unwrap());
+        let other = d.path().join("Other");
+        drop(Manifest::open(&other.join("manifest.db")).unwrap());
+        assert!(!migrate_from(&other, &path).unwrap());
+    }
 
     #[test]
     fn record_and_lookup() {

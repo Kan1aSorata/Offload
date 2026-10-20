@@ -18,7 +18,9 @@ pub const CHUNK: usize = 8 << 20;
 /// 3 块缓冲 = 24 MB 常驻
 pub const DEPTH: usize = 3;
 
-pub const PART_SUFFIX: &str = ".photosync-part";
+pub const PART_SUFFIX: &str = ".offload-part";
+/// 改名前（PhotoSync）的临时文件后缀，只用于清理残留
+pub const LEGACY_PART_SUFFIX: &str = ".photosync-part";
 
 #[derive(Debug, thiserror::Error)]
 pub enum CopyError {
@@ -40,10 +42,14 @@ pub struct CopyOptions {
     pub paranoid: bool,
 }
 
-/// `dst` 对应的临时文件：`.<名>.photosync-part`
+/// `dst` 对应的临时文件：`.<名>.offload-part`
 pub fn part_path(dst: &Path) -> PathBuf {
+    part_path_with(dst, PART_SUFFIX)
+}
+
+pub fn part_path_with(dst: &Path, suffix: &str) -> PathBuf {
     let name = dst.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-    dst.with_file_name(format!(".{name}{PART_SUFFIX}"))
+    dst.with_file_name(format!(".{name}{suffix}"))
 }
 
 /// 出错或取消时删掉临时文件，避免留下看似完整的残缺文件

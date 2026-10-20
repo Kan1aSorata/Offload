@@ -138,7 +138,7 @@ export function installMock() {
     retry: () => emit("backup-progress", (snap = { ...base, state: "copying" })),
     dismiss: () => emit("backup-progress", (snap = { ...base, state: "idle", card_name: null })),
     recent_jobs: () => jobs,
-    app_info: () => ({ version: "0.1.0", manifest_path: "~/Library/Application Support/PhotoSync/manifest.db", files_recorded: 1284 }),
+    app_info: () => ({ version: "0.1.0", manifest_path: "~/Library/Application Support/Offload/manifest.db", files_recorded: 1284 }),
     complete_onboarding: () => config,
     "plugin:event|listen": (a) => {
       const ev = a.event as string;

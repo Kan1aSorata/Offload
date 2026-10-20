@@ -96,7 +96,7 @@
       <div class="hero tone-ac"><Icon name="card-check" size={64} width={1} /></div>
       <div class="text">
         <h1 class="title">插入相机卡，自动备份</h1>
-        <p class="muted">PhotoSync 在菜单栏安静等待。插入卡后立即复制并逐个校验，完成时弹出卡。</p>
+        <p class="muted">Offload 在菜单栏安静等待。插入卡后立即复制并逐个校验，完成时弹出卡。</p>
         <p class="small muted">Insert a card to back it up. Verified, then ejected.</p>
       </div>
     </div>
@@ -146,8 +146,8 @@
     <div class="stack">
       <div class="text">
         <h1 class="title">允许访问可移除卷宗</h1>
-        <p class="muted">请在系统弹窗中选择“允许”，PhotoSync 才能读取相机卡并写入 SSD。</p>
-        <p class="small muted">Choose “Allow” so PhotoSync can read the card and write to the SSD.</p>
+        <p class="muted">请在系统弹窗中选择“允许”，Offload 才能读取相机卡并写入 SSD。</p>
+        <p class="small muted">Choose “Allow” so Offload can read the card and write to the SSD.</p>
       </div>
       <div class="callout tone-ac">
         <Icon name="lock" color="var(--acink)" />

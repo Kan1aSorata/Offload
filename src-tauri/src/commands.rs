@@ -2,9 +2,9 @@
 
 use std::path::{Path, PathBuf};
 
-use photosync_core::manifest::{self, JobRow};
-use photosync_core::platform::{self, VolumeInfo};
-use photosync_core::{Command, Config, Snapshot};
+use offload_core::manifest::{self, JobRow};
+use offload_core::platform::{self, VolumeInfo};
+use offload_core::{Command, Config, Snapshot};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, State, WebviewWindow};
 use tauri_plugin_autostart::ManagerExt;

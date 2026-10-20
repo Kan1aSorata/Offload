@@ -1,4 +1,4 @@
-//! PhotoSync 核心库：不依赖 Tauri，可单独用命令行和单元测试验证。
+//! Offload 核心库：不依赖 Tauri，可单独用命令行和单元测试验证。
 //!
 //! 主链：VolumeWatcher → CardDetector → JobQueue → Planner → CopyEngine → Manifest → Ejector
 

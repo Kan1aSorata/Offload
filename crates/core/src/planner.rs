@@ -14,7 +14,7 @@ use chrono::{DateTime, Local, NaiveDate};
 use walkdir::WalkDir;
 
 use crate::config::FolderLayout;
-use crate::copier::part_path;
+use crate::copier::{part_path_with, LEGACY_PART_SUFFIX, PART_SUFFIX};
 use crate::manifest::Manifest;
 
 /// 读 EXIF DateTimeOriginal 的图片与 RAW
@@ -422,12 +422,14 @@ pub fn plan_with(input: &PlanInput, exif: &mut impl FnMut(&Path) -> ExifInfo) ->
     Ok(plan)
 }
 
-/// 清理上次中断留下的 .photosync-part
+/// 清理上次中断留下的 .offload-part（以及改名前的 .photosync-part）
 pub fn clean_stale_parts(plan: &Plan) {
     for t in &plan.tasks {
-        let p = part_path(&t.dst);
-        if p.exists() {
-            let _ = fs::remove_file(p);
+        for suffix in [PART_SUFFIX, LEGACY_PART_SUFFIX] {
+            let p = part_path_with(&t.dst, suffix);
+            if p.exists() {
+                let _ = fs::remove_file(p);
+            }
         }
     }
 }

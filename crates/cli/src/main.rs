@@ -1,4 +1,4 @@
-//! 调试工具：photosync-cli watch | plan | copy | backup
+//! 调试工具：offload-cli watch | plan | copy | backup
 
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
@@ -7,15 +7,15 @@ use std::time::{Duration, Instant};
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use crossbeam_channel::unbounded;
-use photosync_core::copier::{copy_verified, CopyOptions};
-use photosync_core::job::{Command, NoopEjector, Runner};
-use photosync_core::manifest::{self, Manifest};
-use photosync_core::planner::{self, DateSource, PlanInput};
-use photosync_core::platform::{self, Ejector, PlatformEjector, PlatformWatcher, VolumeEvent, VolumeWatcher};
-use photosync_core::{fmt_bytes, Config, FolderLayout, JobState, Progress};
+use offload_core::copier::{copy_verified, CopyOptions};
+use offload_core::job::{Command, NoopEjector, Runner};
+use offload_core::manifest::{self, Manifest};
+use offload_core::planner::{self, DateSource, PlanInput};
+use offload_core::platform::{self, Ejector, PlatformEjector, PlatformWatcher, VolumeEvent, VolumeWatcher};
+use offload_core::{fmt_bytes, Config, FolderLayout, JobState, Progress};
 
 #[derive(Parser)]
-#[command(name = "photosync-cli", version, about = "PhotoSync 调试工具")]
+#[command(name = "offload-cli", version, about = "Offload 调试工具")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -139,7 +139,11 @@ fn watch() -> Result<()> {
 }
 
 fn open_manifest(p: Option<PathBuf>) -> Result<Manifest> {
-    let path = p.unwrap_or_else(manifest::default_path);
+    let path = p.unwrap_or_else(|| {
+        let path = manifest::default_path();
+        manifest::migrate_legacy(&path);
+        path
+    });
     Manifest::open(&path).with_context(|| format!("打开 manifest 失败：{}", path.display()))
 }
 
@@ -147,7 +151,7 @@ fn plan(card: PathBuf, target: PathBuf, layout: FolderLayout, manifest: Option<P
     if !card.join("DCIM").is_dir() {
         bail!("{} 下没有 DCIM，不像相机卡", card.display());
     }
-    let job = photosync_core::detector::job_for_path(card.clone()).context("无法识别卡")?;
+    let job = offload_core::detector::job_for_path(card.clone()).context("无法识别卡")?;
     let m = open_manifest(manifest)?;
     let t0 = Instant::now();
     let p = planner::plan(&PlanInput {
@@ -199,7 +203,7 @@ fn copy(src: PathBuf, dst: PathBuf, paranoid: bool) -> Result<()> {
     prog.set_plan(1, size, 0, None);
     prog.set_state(JobState::Copying);
 
-    // Ctrl-C：取消，只留下 .photosync-part 被清理
+    // Ctrl-C：取消，只留下 .offload-part 被清理
     {
         let prog = prog.clone();
         ctrlc_cancel(move || prog.cancel());
@@ -235,7 +239,7 @@ fn copy(src: PathBuf, dst: PathBuf, paranoid: bool) -> Result<()> {
 }
 
 fn backup(card: PathBuf, target: PathBuf, layout: FolderLayout, manifest: Option<PathBuf>, eject: bool, proxies: bool) -> Result<()> {
-    let job = photosync_core::detector::job_for_path(card.clone()).context("该路径下没有 DCIM")?;
+    let job = offload_core::detector::job_for_path(card.clone()).context("该路径下没有 DCIM")?;
     let target_volume_uuid = platform::volume_info_nearest(&target).and_then(|v| v.uuid);
     let cfg = Arc::new(RwLock::new(Config {
         target_path: Some(target),

@@ -1,16 +1,16 @@
-# PhotoSync
+# Offload
 
 常驻菜单栏的 macOS 小工具：插入含 DCIM 的存储卡后，自动把照片和视频增量备份到指定 SSD，按 `年/月/日` 归档，逐文件 xxh3-128 校验，全部通过后自动弹出卡。
 
 - 轻量：常驻内存约 50 MB 以内（调试构建实测 48 MB），无 Dock 图标
 - 无感：插卡后全程无需点击
 - 极速：读写流水线 + 8 MB 分块，总耗时约等于 max(读, 写)
-- 安全：只读源卡；`F_NOCACHE` 回读目标盘校验；`.photosync-part` + 原子重命名；校验通过前绝不弹卡
+- 安全：只读源卡；`F_NOCACHE` 回读目标盘校验；`.offload-part` + 原子重命名；校验通过前绝不弹卡
 
 ## 工程结构
 
 ```
-PhotoSync/
+Offload/
 ├── crates/core/              # 纯 Rust 库，无 Tauri 依赖
 │   ├── platform/mod.rs       # trait VolumeWatcher / Ejector、卷信息、F_NOCACHE
 │   ├── platform/macos.rs     # DiskArbitration 监听、diskutil 弹出、IOPMAssertion
@@ -22,7 +22,7 @@ PhotoSync/
 │   ├── job.rs                # 任务队列与状态机、系统通知文案
 │   ├── progress.rs           # 状态快照、3 秒滑动平均速度、暂停/取消
 │   └── service.rs            # watcher → detector → runner 串联
-├── crates/cli/               # 调试工具：photosync-cli watch | plan | copy | backup | volumes
+├── crates/cli/               # 调试工具：offload-cli watch | plan | copy | backup | volumes
 ├── src-tauri/                # 托盘、窗口、通知、命令、10 Hz 事件桥接
 ├── ui/                       # 菜单栏弹窗、设置窗口、首次引导（Svelte 5）
 └── scripts/gen_icons.py      # 生成应用图标与菜单栏模板图标
@@ -69,25 +69,25 @@ pnpm tauri build
 ## 命令行调试工具
 
 ```bash
-cargo run -p photosync-cli -- watch
+cargo run -p offload-cli -- watch
 ```
 
 打印每个磁盘事件的 UUID、路径、BSD 名、是否有 DCIM，用于验证扩展坞插拔、睡眠唤醒、多卡同插。
 
 ```bash
-cargo run -p photosync-cli -- plan /Volumes/EOS_DIGITAL "/Volumes/Photos SSD/Cards" -v
+cargo run -p offload-cli -- plan /Volumes/EOS_DIGITAL "/Volumes/Photos SSD/Cards" -v
 ```
 
 只打印计划：每组文件的日期来源（EXIF / mtime）、目标路径、跳过与重命名。加 `--proxies` 同时计入代理文件。
 
 ```bash
-cargo run --release -p photosync-cli -- copy <源文件> <目标文件>
+cargo run --release -p offload-cli -- copy <源文件> <目标文件>
 ```
 
-单文件拷贝并回读校验，显示吞吐；Ctrl-C 只会留下被清理的 `.photosync-part`。
+单文件拷贝并回读校验，显示吞吐；Ctrl-C 只会留下被清理的 `.offload-part`。
 
 ```bash
-cargo run -p photosync-cli -- backup /Volumes/EOS_DIGITAL "/Volumes/Photos SSD/Cards" --eject
+cargo run -p offload-cli -- backup /Volumes/EOS_DIGITAL "/Volumes/Photos SSD/Cards" --eject
 ```
 
 对一张卡执行完整流程（默认使用应用的 manifest，可用 `--manifest` 指定测试库）。
@@ -107,8 +107,8 @@ cargo run -p photosync-cli -- backup /Volumes/EOS_DIGITAL "/Volumes/Photos SSD/C
 
 | 内容 | 路径 |
 | --- | --- |
-| 配置 | `~/Library/Application Support/app.photosync.desktop/settings.json` |
-| 增量记录 | `~/Library/Application Support/PhotoSync/manifest.db` |
+| 配置 | `~/Library/Application Support/app.offload.desktop/settings.json` |
+| 增量记录 | `~/Library/Application Support/Offload/manifest.db` |
 
 ## 权限与已知事项
 

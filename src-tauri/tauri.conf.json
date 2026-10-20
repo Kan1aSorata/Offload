@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "PhotoSync",
+  "productName": "Offload",
   "version": "0.1.0",
-  "identifier": "app.photosync.desktop",
+  "identifier": "app.offload.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -16,7 +16,7 @@
       {
         "label": "popover",
         "url": "index.html#/popover",
-        "title": "PhotoSync",
+        "title": "Offload",
         "width": 360,
         "height": 420,
         "resizable": false,
@@ -44,7 +44,7 @@
       {
         "label": "onboarding",
         "url": "index.html#/onboarding",
-        "title": "欢迎使用 PhotoSync",
+        "title": "欢迎使用 Offload",
         "width": 480,
         "height": 470,
         "resizable": false,
