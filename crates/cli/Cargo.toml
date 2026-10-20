@@ -1,0 +1,13 @@
+[package]
+name = "photosync-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+photosync-core.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+crossbeam-channel.workspace = true
+clap = { version = "4", features = ["derive"] }

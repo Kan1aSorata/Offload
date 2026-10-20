@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSRemovableVolumesUsageDescription</key>
+  <string>PhotoSync 需要读取相机存储卡并把照片写入你选择的 SSD。文件只在本机复制，不会上传。</string>
+  <key>LSUIElement</key>
+  <true/>
+</dict>
+</plist>

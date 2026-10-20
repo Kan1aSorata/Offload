@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "PhotoSync 窗口权限：只开放事件订阅与本应用命令",
+  "windows": ["popover", "settings", "onboarding"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "core:window:allow-close"
+  ]
+}
