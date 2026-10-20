@@ -14,7 +14,7 @@ Insert a camera card — Offload backs it up to your SSD, verifies every file, a
 
 ## 安装
 
-1. 从 [Releases](https://github.com/Kan1aSorata/Offload/releases) 下载最新的 `Offload.dmg`
+1. 下载最新版 **[Offload.dmg](https://github.com/Kan1aSorata/Offload/releases/latest/download/Offload.dmg)**（历史版本见 [Releases](https://github.com/Kan1aSorata/Offload/releases)）
 2. 打开后把 Offload 拖进「应用程序」
 3. 需要 macOS 12 或更高版本，支持 Apple Silicon 与 Intel 芯片
 
