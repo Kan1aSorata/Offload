@@ -287,12 +287,13 @@ impl Runner {
         if let Err(e) = std::fs::create_dir_all(&target) {
             return self.fail(job, None, FailReason::Io { message: e.to_string() });
         }
+        let layout = cfg.folder_template();
         let plan = match planner::plan(&PlanInput {
             card_root: &job.mount,
             card_id: &job.card_id,
             card_name: &job.name,
             target_root: &target,
-            layout: cfg.folder_layout,
+            layout: &layout,
             manifest: &self.manifest,
             include_proxies: cfg.backup_proxies,
         }) {

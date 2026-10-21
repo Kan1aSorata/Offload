@@ -116,7 +116,11 @@ cargo run -p offload-cli -- backup /Volumes/EOS_DIGITAL "/Volumes/Photos SSD/Car
 
 ## 归档与增量规则
 
-- 目标路径 `<目标根>/YYYY/MM/DD/<原文件名>`；设置里可改为「按相机」`<型号>/YYYY/MM/DD` 或「按卡名」`<卡名>/YYYY/MM/DD`
+- 目标路径默认 `<目标根>/YYYY/MM/DD/<原文件名>`；设置里可选 `相机/年/月/日`、`卡名/年/月/日`、`年/月/日/相机`、`年/月/日/卡名`，或自定义模板（`crates/core/src/layout.rs`）
+  - 模板用 `/` 分层，可用变量 `{year}` `{month}` `{day}` `{date}`（2026-10-20）`{camera}`（EXIF 型号）`{card}`（卷名），可与文字混写，如 `{year}/{date} {camera}`
+  - 没有 EXIF 型号的文件（如视频）用这张卡上最常见的型号，都没有时为「未知相机」
+  - 更改归档方式后，已备份的文件按 manifest 记录跳过，不会按新结构重复拷贝；只有新文件进入新结构
+  - CLI：`--layout date|camera|card|date-camera|date-card`，或 `--template "{year}/{month}/{day}/{camera}"`
 - 照片取 EXIF DateTimeOriginal（含 CR3/HEIF），视频与无 EXIF 的文件取 mtime
 - 附属文件（XMP、THM、XML、LRF）跟随同名主文件，包括 Sony `C0001.MP4` ↔ `C0001M01.XML`
 - manifest 有记录且目标仍在 → 跳过；目标存在、大小相同且头尾各 64 KB 一致 → 跳过并补记；否则整组加后缀 `_1`、`_2`（两台同型号机身拍出的同名、同大小无压缩 RAW 不会被误判为已备份）

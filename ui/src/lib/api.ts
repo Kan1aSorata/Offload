@@ -54,7 +54,7 @@ export interface Snapshot {
   queued: number;
 }
 
-export type FolderLayout = "date" | "camera" | "card";
+export type FolderLayout = "date" | "camera" | "card" | "date_camera" | "date_card" | "custom";
 export type PopoverDensity = "compact" | "standard" | "detailed";
 
 export interface Config {
@@ -65,6 +65,8 @@ export interface Config {
   paranoid_verify: boolean;
   launch_at_login: boolean;
   folder_layout: FolderLayout;
+  /** 自定义归档模板，仅在 folder_layout 为 custom 时生效 */
+  folder_template: string;
   backup_proxies: boolean;
   popover_density: PopoverDensity;
   notify_start: boolean;

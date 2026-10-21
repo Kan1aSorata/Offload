@@ -12,7 +12,7 @@ use offload_core::job::{Command, NoopEjector, Runner};
 use offload_core::manifest::{self, Manifest};
 use offload_core::planner::{self, DateSource, PlanInput};
 use offload_core::platform::{self, Ejector, PlatformEjector, PlatformWatcher, VolumeEvent, VolumeWatcher};
-use offload_core::{fmt_bytes, Config, FolderLayout, JobState, Progress};
+use offload_core::{fmt_bytes, Config, FolderLayout, FolderTemplate, JobState, Progress};
 
 #[derive(Parser)]
 #[command(name = "offload-cli", version, about = "Offload 调试工具")]
@@ -31,6 +31,9 @@ enum Cmd {
         target: PathBuf,
         #[arg(long, value_enum, default_value = "date")]
         layout: Layout,
+        /// 自定义归档模板，如 "{year}/{month}/{day}/{camera}"；指定后忽略 --layout
+        #[arg(long)]
+        template: Option<String>,
         /// 使用指定的 manifest（默认使用应用的 manifest）
         #[arg(long)]
         manifest: Option<PathBuf>,
@@ -55,6 +58,9 @@ enum Cmd {
         target: PathBuf,
         #[arg(long, value_enum, default_value = "date")]
         layout: Layout,
+        /// 自定义归档模板，如 "{year}/{month}/{day}/{camera}"；指定后忽略 --layout
+        #[arg(long)]
+        template: Option<String>,
         #[arg(long)]
         manifest: Option<PathBuf>,
         /// 完成后弹出卡
@@ -73,6 +79,8 @@ enum Layout {
     Date,
     Camera,
     Card,
+    DateCamera,
+    DateCard,
 }
 
 impl From<Layout> for FolderLayout {
@@ -81,8 +89,23 @@ impl From<Layout> for FolderLayout {
             Layout::Date => FolderLayout::Date,
             Layout::Camera => FolderLayout::Camera,
             Layout::Card => FolderLayout::Card,
+            Layout::DateCamera => FolderLayout::DateCamera,
+            Layout::DateCard => FolderLayout::DateCard,
         }
     }
+}
+
+/// 命令行参数 → 配置里的归档方式与模板，模板无效时直接报错
+fn layout_config(layout: Layout, template: Option<String>) -> Result<(FolderLayout, String)> {
+    let (layout, text) = match template {
+        Some(t) => (FolderLayout::Custom, t),
+        None => {
+            let l = FolderLayout::from(layout);
+            (l, l.preset().unwrap_or_default().to_string())
+        }
+    };
+    FolderTemplate::parse(&text).with_context(|| format!("归档模板无效：{text}"))?;
+    Ok((layout, text))
 }
 
 fn main() -> Result<()> {
@@ -92,9 +115,13 @@ fn main() -> Result<()> {
         .init();
     match Cli::parse().cmd {
         Cmd::Watch => watch(),
-        Cmd::Plan { card, target, layout, manifest, verbose, proxies } => plan(card, target, layout.into(), manifest, verbose, proxies),
+        Cmd::Plan { card, target, layout, template, manifest, verbose, proxies } => {
+            plan(card, target, layout_config(layout, template)?.1, manifest, verbose, proxies)
+        }
         Cmd::Copy { src, dst, paranoid } => copy(src, dst, paranoid),
-        Cmd::Backup { card, target, layout, manifest, eject, proxies } => backup(card, target, layout.into(), manifest, eject, proxies),
+        Cmd::Backup { card, target, layout, template, manifest, eject, proxies } => {
+            backup(card, target, layout_config(layout, template)?, manifest, eject, proxies)
+        }
         Cmd::Volumes => {
             for v in platform::list_external_volumes() {
                 println!(
@@ -147,19 +174,20 @@ fn open_manifest(p: Option<PathBuf>) -> Result<Manifest> {
     Manifest::open(&path).with_context(|| format!("打开 manifest 失败：{}", path.display()))
 }
 
-fn plan(card: PathBuf, target: PathBuf, layout: FolderLayout, manifest: Option<PathBuf>, verbose: bool, proxies: bool) -> Result<()> {
+fn plan(card: PathBuf, target: PathBuf, template: String, manifest: Option<PathBuf>, verbose: bool, proxies: bool) -> Result<()> {
     if !card.join("DCIM").is_dir() {
         bail!("{} 下没有 DCIM，不像相机卡", card.display());
     }
     let job = offload_core::detector::job_for_path(card.clone()).context("无法识别卡")?;
     let m = open_manifest(manifest)?;
+    let layout = FolderTemplate::parse(&template)?;
     let t0 = Instant::now();
     let p = planner::plan(&PlanInput {
         card_root: &card,
         card_id: &job.card_id,
         card_name: &job.name,
         target_root: &target,
-        layout,
+        layout: &layout,
         manifest: &m,
         include_proxies: proxies,
     })?;
@@ -238,7 +266,7 @@ fn copy(src: PathBuf, dst: PathBuf, paranoid: bool) -> Result<()> {
     Ok(())
 }
 
-fn backup(card: PathBuf, target: PathBuf, layout: FolderLayout, manifest: Option<PathBuf>, eject: bool, proxies: bool) -> Result<()> {
+fn backup(card: PathBuf, target: PathBuf, (layout, template): (FolderLayout, String), manifest: Option<PathBuf>, eject: bool, proxies: bool) -> Result<()> {
     let job = offload_core::detector::job_for_path(card.clone()).context("该路径下没有 DCIM")?;
     let target_volume_uuid = platform::volume_info_nearest(&target).and_then(|v| v.uuid);
     let cfg = Arc::new(RwLock::new(Config {
@@ -246,6 +274,7 @@ fn backup(card: PathBuf, target: PathBuf, layout: FolderLayout, manifest: Option
         target_volume_uuid,
         auto_eject: eject,
         folder_layout: layout,
+        folder_template: template,
         backup_proxies: proxies,
         ..Default::default()
     }));

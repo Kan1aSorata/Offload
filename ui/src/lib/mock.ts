@@ -21,6 +21,7 @@ export function installMock() {
     paranoid_verify: false,
     launch_at_login: false,
     folder_layout: "date",
+    folder_template: "{year}/{month}/{day}",
     backup_proxies: false,
     popover_density: (params.get("density") as Config["popover_density"]) ?? "standard",
     notify_start: true,
