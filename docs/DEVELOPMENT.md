@@ -88,6 +88,37 @@ asc notarization staple --file target/universal-apple-darwin/release/bundle/maco
 
 团队首次公证可能要一个小时以上，超时后用 `asc notarization status --id <ID>` 继续查，不要重复提交。
 
+### 自动发布（GitHub Actions）
+
+推送 `v*` 标签后，`.github/workflows/release.yml` 会在 macOS 上编译通用版、签名、公证 `.app` 与 `.dmg`，并发布到 Releases（文件名固定为 `Offload.dmg`，README 的下载链接始终指向最新版）。平时每次推送和 PR 由 `.github/workflows/ci.yml` 跑测试与类型检查。
+
+**一次性配置**：在 GitHub 仓库 Settings › Secrets and variables › Actions 添加以下 5 个 Repository secrets。
+
+| 名称 | 内容 |
+| --- | --- |
+| `APPLE_CERTIFICATE` | `Developer ID Application` 证书导出的 `.p12`，转成 base64 |
+| `APPLE_CERTIFICATE_PASSWORD` | 导出 `.p12` 时设的密码 |
+| `APPLE_API_KEY_ID` | App Store Connect API 密钥的 Key ID |
+| `APPLE_API_ISSUER` | App Store Connect API 的 Issuer ID |
+| `APPLE_API_KEY` | 下载的 `AuthKey_<KeyID>.p8` 文件的全部文本内容 |
+
+1. 证书：打开「钥匙串访问」，在「我的证书」里右键 `Developer ID Application: …` → 导出为 `.p12` 并设密码；然后 `base64 -i 证书.p12 | pbcopy`，粘贴为 `APPLE_CERTIFICATE`
+2. 公证密钥：App Store Connect › 用户和访问 › 集成 › App Store Connect API，生成一个密钥（角色选「开发者」即可），记下 Key ID 与页面上方的 Issuer ID，下载 `.p8`（只能下载一次）；`pbcopy < AuthKey_XXXX.p8` 后粘贴为 `APPLE_API_KEY`。若 `asc` 已在用某个 API 密钥且 `.p8` 还在，也可直接复用
+
+**发布新版本**：
+
+1. 把 `Cargo.toml`（`[workspace.package]`）、`package.json`、`src-tauri/tauri.conf.json` 里的版本号改成新版本，合并到 main（同时执行一次 `cargo update -w` 更新 `Cargo.lock`）
+2. 在 main 上打标签并推送，标签必须与版本号一致：
+
+```bash
+git checkout main && git pull
+git tag v0.3.0 && git push origin v0.3.0
+```
+
+3. 在仓库的 Actions 页面查看进度，完成后 Release 自动出现。更新说明按合并过的 PR 自动生成，可事后在 Release 页面编辑
+
+标签与版本号不一致、测试失败或公证未通过时不会发布；公证失败会在日志里打印 Apple 返回的原因。
+
 ## 命令行调试工具
 
 ```bash

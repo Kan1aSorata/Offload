@@ -1,0 +1,116 @@
+# 推送 v* 标签（如 v0.2.0）时：编译通用版、签名、公证，发布到 GitHub Releases。
+# 需要的仓库 Secrets 见 docs/DEVELOPMENT.md 的「自动发布」一节。
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  APPLE_SIGNING_IDENTITY: "Developer ID Application: FENGYU HE (6HBNF3C945)"
+  APP: target/universal-apple-darwin/release/bundle/macos/Offload.app
+
+jobs:
+  release:
+    runs-on: macos-latest
+    # 团队首次公证可能超过一小时
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查标签与版本号一致
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver=$(jq -r .version src-tauri/tauri.conf.json)
+          if [[ "$tag" != "$ver" ]]; then
+            echo "::error::标签 $GITHUB_REF_NAME 与 tauri.conf.json 里的版本 $ver 不一致，请先改版本号再打标签"
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: 测试
+        run: cargo test --workspace --locked
+
+      - name: 导入签名证书
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/build.keychain-db"
+          keychain_password=$(openssl rand -base64 24)
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          security find-identity -v -p codesigning "$keychain"
+
+      - name: 编译并签名 Offload.app（通用版）
+        run: pnpm tauri build --target universal-apple-darwin --bundles app
+
+      - name: 写入公证密钥（放在编译之后，避免 Tauri 读到不完整的公证配置）
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        run: |
+          printf '%s' "$APPLE_API_KEY" > "$RUNNER_TEMP/AuthKey.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+
+      - name: 公证 Offload.app
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/Offload-app.zip"
+          scripts/notarize.sh "$RUNNER_TEMP/Offload-app.zip" "$APP"
+
+      - name: 制作、签名并公证 Offload.dmg
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          root="$RUNNER_TEMP/dmg-root"
+          mkdir -p "$root"
+          ditto "$APP" "$root/Offload.app"
+          ln -s /Applications "$root/Applications"
+          hdiutil create -volname Offload -srcfolder "$root" -format UDZO -ov Offload.dmg
+          codesign --timestamp -s "$APPLE_SIGNING_IDENTITY" Offload.dmg
+          scripts/notarize.sh Offload.dmg
+
+      - name: 发布到 GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 已在网页上为这个标签建好 Release 时只上传（覆盖）dmg，否则新建并自动生成更新说明
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" Offload.dmg --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" Offload.dmg \
+              --title "Offload ${GITHUB_REF_NAME#v}" \
+              --generate-notes \
+              --verify-tag
+          fi
+
+      - name: 清理
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
