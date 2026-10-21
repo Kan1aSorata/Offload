@@ -31,6 +31,7 @@ pub fn get_settings(state: State<AppState>) -> Config {
 
 /// 保存配置并应用副作用（开机启动），广播给所有窗口
 fn apply_config(app: &AppHandle, state: &AppState, cfg: Config) -> CmdResult<Config> {
+    cfg.validate().map_err(err)?;
     let old = state.service.config();
     if old.launch_at_login != cfg.launch_at_login {
         let al = app.autolaunch();

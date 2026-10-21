@@ -6,6 +6,7 @@ pub mod config;
 pub mod copier;
 pub mod detector;
 pub mod job;
+pub mod layout;
 pub mod manifest;
 pub mod planner;
 pub mod platform;
@@ -14,5 +15,6 @@ pub mod service;
 
 pub use config::{Config, FolderLayout, PopoverDensity};
 pub use job::{Command, Job, Notice};
+pub use layout::{FolderTemplate, TemplateError};
 pub use progress::{fmt_bytes, FailReason, JobState, Progress, Snapshot};
 pub use service::Service;

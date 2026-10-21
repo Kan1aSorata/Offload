@@ -1,6 +1,6 @@
 //! 规划器：扫描卡、取日期、算目标路径、判定跳过或重命名、检查空间。
 //!
-//! 目标路径由「拍摄日期 + 原文件名」唯一确定：`<目标根>/YYYY/MM/DD/<原文件名>`，
+//! 目标路径由「归档模板 + 拍摄日期等信息 + 原文件名」唯一确定，默认 `<目标根>/YYYY/MM/DD/<原文件名>`，
 //! 同一张卡重复插入时每个文件算出同一路径，增量判断因此成立。
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -13,8 +13,8 @@ use anyhow::Result;
 use chrono::{DateTime, Local, NaiveDate};
 use walkdir::WalkDir;
 
-use crate::config::FolderLayout;
 use crate::copier::{part_path_with, LEGACY_PART_SUFFIX, PART_SUFFIX};
+use crate::layout::{FolderTemplate, Vars};
 use crate::manifest::Manifest;
 
 /// 读 EXIF DateTimeOriginal 的图片与 RAW
@@ -134,7 +134,7 @@ pub struct PlanInput<'a> {
     pub card_id: &'a str,
     pub card_name: &'a str,
     pub target_root: &'a Path,
-    pub layout: FolderLayout,
+    pub layout: &'a FolderTemplate,
     pub manifest: &'a Manifest,
     /// 备份代理文件（LRF、LRV、Sony SUB 目录）
     pub include_proxies: bool,
@@ -289,12 +289,6 @@ fn group_date(group: &[CardFile], exif: &mut impl FnMut(&Path) -> ExifInfo) -> (
     (d, DateSource::Mtime, model)
 }
 
-fn sanitize(s: &str) -> String {
-    let t: String = s.chars().map(|c| if matches!(c, '/' | ':' | '\\') || c.is_control() { '-' } else { c }).collect();
-    let t = t.trim().trim_start_matches('.').to_string();
-    if t.is_empty() { "未命名".to_string() } else { t }
-}
-
 /// 比对两个同样大小的文件的头尾各 64 KB。不同机身拍出的同名同大小文件
 /// （如固定大小的无压缩 RAW）EXIF 里的时间、序列号必然不同；读不了按不同处理。
 fn same_content(a: &Path, b: &Path, size: u64) -> bool {
@@ -348,18 +342,12 @@ pub fn plan_with(input: &PlanInput, exif: &mut impl FnMut(&Path) -> ExifInfo) ->
     let mut reserved: HashSet<PathBuf> = HashSet::new();
 
     for (group, date, source, model) in dated {
-        let mut dir = input.target_root.to_path_buf();
-        match input.layout {
-            FolderLayout::Date => {}
-            FolderLayout::Camera => {
-                let m = model.clone().or_else(|| main_model.clone()).unwrap_or_else(|| "未知相机".into());
-                dir.push(sanitize(&m));
-            }
-            FolderLayout::Card => dir.push(sanitize(input.card_name)),
-        }
-        dir.push(date.format("%Y").to_string());
-        dir.push(date.format("%m").to_string());
-        dir.push(date.format("%d").to_string());
+        let camera = if input.layout.uses_camera() {
+            model.clone().or_else(|| main_model.clone()).unwrap_or_else(|| "未知相机".into())
+        } else {
+            String::new()
+        };
+        let dir = input.layout.render(input.target_root, &Vars { date, camera: &camera, card: input.card_name });
 
         plan.groups.push(GroupInfo { date, source, members: group.iter().map(|f| f.rel.clone()).collect() });
 
@@ -465,7 +453,12 @@ pub fn check_space(bytes_total: u64, target_root: &Path) -> Result<(), SpaceShor
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::FolderLayout;
     use filetime::FileTime;
+
+    fn preset(l: FolderLayout) -> FolderTemplate {
+        FolderTemplate::parse(l.preset().unwrap()).unwrap()
+    }
 
     fn touch(root: &Path, rel: &str, len: usize, ts: i64) {
         let p = root.join(rel);
@@ -513,7 +506,7 @@ mod tests {
 
         let m = Manifest::open_in_memory().unwrap();
         let t = tempfile::tempdir().unwrap();
-        let input = PlanInput { card_root: d.path(), card_id: "U", card_name: "EOS", target_root: t.path(), layout: FolderLayout::Date, manifest: &m, include_proxies: false };
+        let input = PlanInput { card_root: d.path(), card_id: "U", card_name: "EOS", target_root: t.path(), layout: &FolderTemplate::default(), manifest: &m, include_proxies: false };
         let p = plan_with(&input, &mut no_exif).unwrap();
         let dst = |rel: &str| p.tasks.iter().find(|t| t.rel_path == rel).unwrap().dst.strip_prefix(t.path()).unwrap().to_string_lossy().into_owned();
         // 附属文件跟随主文件的日期
@@ -528,11 +521,38 @@ mod tests {
         touch(d.path(), "DCIM/100CANON/IMG_0001.CR3", 10, noon(20));
         let m = Manifest::open_in_memory().unwrap();
         let t = tempfile::tempdir().unwrap();
-        let input = PlanInput { card_root: d.path(), card_id: "U", card_name: "EOS", target_root: t.path(), layout: FolderLayout::Camera, manifest: &m, include_proxies: false };
+        let input = PlanInput { card_root: d.path(), card_id: "U", card_name: "EOS", target_root: t.path(), layout: &preset(FolderLayout::Camera), manifest: &m, include_proxies: false };
         let mut fake = |_: &Path| ExifInfo { date: NaiveDate::from_ymd_opt(2025, 1, 2), model: Some("Canon EOS R5".into()) };
         let p = plan_with(&input, &mut fake).unwrap();
         assert!(p.tasks[0].dst.ends_with("Canon EOS R5/2025/01/02/IMG_0001.CR3"));
         assert_eq!(p.groups[0].source, DateSource::Exif);
+    }
+
+    #[test]
+    fn date_then_camera_layout() {
+        let d = tempfile::tempdir().unwrap();
+        touch(d.path(), "DCIM/100CANON/IMG_0001.CR3", 10, noon(20));
+        touch(d.path(), "DCIM/100CANON/IMG_0001.XMP", 2, noon(20));
+        touch(d.path(), "DCIM/100CANON/MVI_0002.MP4", 10, noon(20));
+        let m = Manifest::open_in_memory().unwrap();
+        let t = tempfile::tempdir().unwrap();
+        let layout = preset(FolderLayout::DateCamera);
+        let input = PlanInput { card_root: d.path(), card_id: "U", card_name: "EOS", target_root: t.path(), layout: &layout, manifest: &m, include_proxies: false };
+        let mut fake = |p: &Path| ExifInfo {
+            date: NaiveDate::from_ymd_opt(2025, 1, 2),
+            model: p.extension().is_some_and(|e| e == "CR3").then(|| "Canon EOS R5".into()),
+        };
+        let p = plan_with(&input, &mut fake).unwrap();
+        let dst = |rel: &str| p.tasks.iter().find(|t| t.rel_path == rel).unwrap().dst.strip_prefix(t.path()).unwrap().to_string_lossy().into_owned();
+        assert_eq!(dst("DCIM/100CANON/IMG_0001.CR3"), "2025/01/02/Canon EOS R5/IMG_0001.CR3");
+        assert_eq!(dst("DCIM/100CANON/IMG_0001.XMP"), "2025/01/02/Canon EOS R5/IMG_0001.XMP");
+        // 视频没有 EXIF：按 mtime 取日期，型号用这张卡上最常见的
+        assert_eq!(dst("DCIM/100CANON/MVI_0002.MP4"), "2026/10/20/Canon EOS R5/MVI_0002.MP4");
+
+        let layout = preset(FolderLayout::DateCard);
+        let input = PlanInput { layout: &layout, ..input };
+        let p = plan_with(&input, &mut no_exif).unwrap();
+        assert!(p.tasks[0].dst.strip_prefix(t.path()).unwrap().starts_with("2026/10/20/EOS"));
     }
 
     #[test]
@@ -547,7 +567,7 @@ mod tests {
         // 0002：另一台相机的同名文件，大小不同 → 加后缀
         touch(t.path(), "2026/10/20/DSC_0002.JPG", 99, noon(20));
         let m = Manifest::open_in_memory().unwrap();
-        let input = PlanInput { card_root: d.path(), card_id: "U", card_name: "N", target_root: t.path(), layout: FolderLayout::Date, manifest: &m, include_proxies: false };
+        let input = PlanInput { card_root: d.path(), card_id: "U", card_name: "N", target_root: t.path(), layout: &FolderTemplate::default(), manifest: &m, include_proxies: false };
         let p = plan_with(&input, &mut no_exif).unwrap();
         assert_eq!(p.skipped.len(), 1);
         assert!(p.skipped[0].needs_record);
@@ -620,7 +640,7 @@ mod tests {
         write(t.path(), "2026/10/20/DSC00003.ARW", &mine, noon(21));
 
         let m = Manifest::open_in_memory().unwrap();
-        let input = PlanInput { card_root: d.path(), card_id: "U", card_name: "A7", target_root: t.path(), layout: FolderLayout::Date, manifest: &m, include_proxies: false };
+        let input = PlanInput { card_root: d.path(), card_id: "U", card_name: "A7", target_root: t.path(), layout: &FolderTemplate::default(), manifest: &m, include_proxies: false };
         let p = plan_with(&input, &mut no_exif).unwrap();
         let names: Vec<_> = p.tasks.iter().map(|t| t.dst.file_name().unwrap().to_string_lossy().into_owned()).collect();
         assert_eq!(names, vec!["DSC00001_1.ARW", "DSC00002_1.ARW"]);
@@ -634,7 +654,7 @@ mod tests {
         touch(d.path(), "DCIM/100CANON/IMG_0001.CR3", 10, noon(20));
         let t = tempfile::tempdir().unwrap();
         let m = Manifest::open_in_memory().unwrap();
-        let input = PlanInput { card_root: d.path(), card_id: "U", card_name: "EOS", target_root: t.path(), layout: FolderLayout::Date, manifest: &m, include_proxies: false };
+        let input = PlanInput { card_root: d.path(), card_id: "U", card_name: "EOS", target_root: t.path(), layout: &FolderTemplate::default(), manifest: &m, include_proxies: false };
         let p = plan_with(&input, &mut no_exif).unwrap();
         let task = &p.tasks[0];
         // 模拟已拷贝：目标被改名到别处也能通过 manifest 跳过

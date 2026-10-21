@@ -15,6 +15,7 @@
   import Switch from "./lib/Switch.svelte";
   import Segmented from "./lib/Segmented.svelte";
   import Icon from "./lib/Icon.svelte";
+  import { VARIABLES, PRESETS, renderTemplate, templateOf } from "./lib/layout";
 
   type Page = "general" | "backup" | "notifications" | "about";
   const pages: { id: Page; label: string }[] = [
@@ -84,9 +85,12 @@
   }
 
   const layoutOptions: { value: FolderLayout; label: string }[] = [
-    { value: "date", label: "按日期" },
-    { value: "camera", label: "按相机" },
-    { value: "card", label: "按卡名" },
+    { value: "date", label: "年 / 月 / 日" },
+    { value: "camera", label: "相机 / 年 / 月 / 日" },
+    { value: "card", label: "卡名 / 年 / 月 / 日" },
+    { value: "date_camera", label: "年 / 月 / 日 / 相机" },
+    { value: "date_card", label: "年 / 月 / 日 / 卡名" },
+    { value: "custom", label: "自定义…" },
   ];
   const densityOptions: { value: PopoverDensity; label: string }[] = [
     { value: "compact", label: "精简" },
@@ -94,13 +98,49 @@
     { value: "detailed", label: "详细" },
   ];
 
-  let layoutExample = $derived(
-    cfg?.folder_layout === "camera"
-      ? "Canon EOS R5/2026/10/20/IMG_4821.CR3"
-      : cfg?.folder_layout === "card"
-        ? "EOS_DIGITAL/2026/10/20/IMG_4821.CR3"
-        : "2026/10/20/IMG_4821.CR3",
-  );
+  // 自定义模板的输入草稿：有效时稍后自动保存，无效时只提示不保存
+  let draft = $state("");
+  let draftInput = $state<HTMLInputElement | null>(null);
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  let preview = $derived(cfg ? renderTemplate(cfg.folder_layout === "custom" ? draft : templateOf(cfg.folder_layout, "")) : null);
+
+  function selectLayout(v: FolderLayout) {
+    if (!cfg) return;
+    if (v === "custom") {
+      // 从当前的预设开始改，而不是从空白开始
+      const start = cfg.folder_layout === "custom" ? cfg.folder_template : PRESETS[cfg.folder_layout];
+      draft = start;
+      cfg = { ...cfg, folder_layout: "custom", folder_template: start };
+      update("folder_template", start);
+    } else {
+      update("folder_layout", v);
+    }
+  }
+
+  function onDraftInput() {
+    clearTimeout(saveTimer);
+    if ("error" in renderTemplate(draft)) return;
+    saveTimer = setTimeout(() => update("folder_template", draft), 400);
+  }
+
+  function insertVariable(name: string) {
+    const token = `{${name}}`;
+    const el = draftInput;
+    const start = el?.selectionStart ?? draft.length;
+    const end = el?.selectionEnd ?? draft.length;
+    draft = draft.slice(0, start) + token + draft.slice(end);
+    onDraftInput();
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + token.length, start + token.length);
+    });
+  }
+
+  $effect(() => {
+    // 进入页面或设置被外部改动时同步草稿（正在输入时不覆盖）
+    if (cfg && document.activeElement !== draftInput) draft = cfg.folder_template;
+  });
 
   function statusLabel(j: JobRow): { text: string; tone: string } {
     switch (j.status) {
@@ -155,10 +195,46 @@
           <div class="row">
             <div class="col">
               <span>文件夹命名</span>
-              <span class="mono muted small">{layoutExample}</span>
+              {#if preview && "path" in preview}
+                <span class="mono muted small path">{preview.path}</span>
+              {/if}
             </div>
-            <Segmented label="文件夹命名" value={cfg.folder_layout} options={layoutOptions} onchange={(v) => update("folder_layout", v)} />
+            <select
+              class="select"
+              aria-label="文件夹命名"
+              value={cfg.folder_layout}
+              onchange={(e) => selectLayout(e.currentTarget.value as FolderLayout)}
+            >
+              {#each layoutOptions as o (o.value)}
+                <option value={o.value}>{o.label}</option>
+              {/each}
+            </select>
           </div>
+          {#if cfg.folder_layout === "custom"}
+            <div class="row stack">
+              <input
+                class="field mono"
+                class:invalid={preview && "error" in preview}
+                aria-label="自定义文件夹模板"
+                spellcheck="false"
+                autocomplete="off"
+                placeholder={PRESETS.date}
+                bind:this={draftInput}
+                bind:value={draft}
+                oninput={onDraftInput}
+              />
+              <div class="vars" role="group" aria-label="插入变量">
+                {#each VARIABLES as v (v.name)}
+                  <button class="btn sm" title={v.hint} onclick={() => insertVariable(v.name)}>{v.label}</button>
+                {/each}
+              </div>
+              {#if preview && "error" in preview}
+                <span class="small" style="color: var(--dg)">{preview.error}</span>
+              {:else}
+                <span class="small muted">用 / 分隔每一层文件夹，变量可以和文字混写，例如 {"{date} {camera}"}</span>
+              {/if}
+            </div>
+          {/if}
           <div class="row">
             <div class="col">
               <span>备份代理文件</span>
@@ -396,6 +472,39 @@
   }
   .path {
     overflow-wrap: anywhere;
+  }
+  .row.stack {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  .select,
+  .field {
+    height: 28px;
+    border: 1px solid var(--bs);
+    border-radius: var(--r-md);
+    background: var(--s2);
+    color: var(--ink);
+    font: inherit;
+  }
+  .select {
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+  .field {
+    width: 100%;
+    padding: 0 10px;
+    font-family: var(--mono);
+  }
+  .field.invalid {
+    border-color: var(--dg);
+  }
+  .vars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
   .h {
     font-weight: 600;
